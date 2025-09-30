@@ -41,10 +41,9 @@
     // ===============================
     // ENDPOINTS / SETTINGS
     // ===============================
-const API_BASE =
-  (location.origin && location.origin.startsWith('http'))
-    ? location.origin
-    : 'https://faq-sim-sandbox.vercel.app/'; // ← change this to your real domain
+const API_BASE = /localhost|127\.0\.0\.1|file:/i.test(location.origin)
+  ? 'https://faq-sim-sandbox.vercel.app' // ← no trailing slash
+  : location.origin;
 
 const REPORT_URL       = `${API_BASE}/api/report`;
 const COACH_URL        = `${API_BASE}/api/coach`;
@@ -54,13 +53,13 @@ const CHECK_ACCESS_URL = `${API_BASE}/api/check-access`;
     const USE_MOCK = false;
 
     const CHANNELS = [
-      { id: 'everything-pa',       name: '#pa-knowledge',       file: '/faqs/paknowledge.md',      dot:'bg-indigo-400' }
+      { id: 'pa-knowledge',       name: '#pa-knowledge',       file: '/faqs/paknowledge.md',      dot:'bg-indigo-400' }
     ];
 
 // Per-channel question counts (optional)
 const DEFAULT_questionsPerRun = 10;
 const questionsPerRun_BY_CHANNEL = {
-  'everything-pa': 10,
+  'pa-knowledge': 10,
 };
     const RUN_SECONDS = 20 * 60; // Time per channel
 
@@ -158,8 +157,6 @@ const questionsPerRun_BY_CHANNEL = {
     // ===============================
     function App({ trainee }) {
       const [channelId, setChannelId] = useState(CHANNELS[0].id);
-      const questionsPerRun =
-  (questionsPerRun_BY_CHANNEL[channelId] ?? DEFAULT_questionsPerRun);
       const [faqMd, setFaqMd] = useState('');
       const [messages, setMessages] = useState([]);
       const [history, setHistory] = useState([]); // harmless to keep
@@ -246,22 +243,21 @@ const questionsPerRun_BY_CHANNEL = {
         }
       }
 
-      async function startRun(){
-        setStarted(true); setFinished(false); setQCount(0); setGrading(null); setMessages([]); setHistory([]);
-setAskedSet(new Set());
-        setRunStartedAt(Date.now());
-        setStarted(true); setFinished(false); setQCount(0); setGrading(null); setMessages([]); setHistory([]);
-        startTimer();
-        setMessages(m=>[...m, {from:'bot', text:`I’ll ask you ${questionsPerRun} quick questions. Answer using the FAQs. Ready?`, time: now()}]);
-        await askNext();
-      }
+async function startRun(){
+  setAskedSet(new Set());
+  setRunStartedAt(Date.now());
+  setStarted(true); setFinished(false); setQCount(0); setGrading(null); setMessages([]); setHistory([]);
+  startTimer();
+  setMessages(m=>[...m, {from:'bot', text:`I’ll ask you ${questionsPerRun} quick questions. Answer using the FAQs. Ready?`, time: now()}]);
+  await askNext();
+}
 
       // ===============================
       // askNext(): gets a non-repeating question from /api/coach
       // ===============================
 async function askNext(){
   // If you added per-channel counts, use questionsPerRun; otherwise this falls back.
-  const limit = (typeof questionsPerRun !== 'undefined') ? questionsPerRun : questionsPerRun;
+if (qCount >= questionsPerRun) { endRun(); return; }
   if (qCount >= limit) { endRun(); return; }
 
   setTyping(true);
@@ -273,7 +269,7 @@ async function askNext(){
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({
-        channel: CHANNELS.find(c=>c.id===channelId)?.name || channelId,
+        channel: channelId,
         avoid,               // ← prevent repeats
         order: 'sequential'  // or 'random'
       })
@@ -371,7 +367,7 @@ async function askNext(){
             method: 'POST',
             headers: { 'Content-Type':'application/json' },
             body: JSON.stringify({
-              channel: CHANNELS.find(c=>c.id===channelId)?.name || channelId,
+              channel: channelId,
               question: lastQuestion,
               answer: userText,
               faqMd,
