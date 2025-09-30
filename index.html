@@ -175,7 +175,7 @@ const questionsPerRun_BY_CHANNEL = {
       const [notice, setNotice] = useState('');
       const [showSummary, setShowSummary] = useState(false);
       const [askedSet, setAskedSet] = useState(new Set());
-      const questionsPerRun = (questionsPerRun_BY_CHANNEL[channelId] ?? questionsPerRun);
+const questionsPerRun = (questionsPerRun_BY_CHANNEL[channelId] ?? DEFAULT_questionsPerRun);
 
 
       const scrollRef = useRef(null);
@@ -258,7 +258,6 @@ async function startRun(){
 async function askNext(){
   // If you added per-channel counts, use questionsPerRun; otherwise this falls back.
 if (qCount >= questionsPerRun) { endRun(); return; }
-  if (qCount >= limit) { endRun(); return; }
 
   setTyping(true);
   try {
