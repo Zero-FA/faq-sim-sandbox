@@ -49,16 +49,13 @@
     const USE_MOCK = false;
 
     const CHANNELS = [
-      { id: 'platform-setup',       name: '#platform-setup',       file: '/faqs/platform-setup.md',      dot:'bg-indigo-400' },
-      { id: 'evaluation-content',   name: '#evaluation-content',   file: '/faqs/evaluation-content.md',  dot:'bg-emerald-400' },
-      { id: 'performance-account',  name: '#performance-account',  file: '/faqs/performance-account.md', dot:'bg-pink-400' },
-      { id: 'billing',              name: '#billing',              file: '/faqs/billing.md',             dot:'bg-amber-400' },
-      { id: 'affiliate-program',    name: '#affiliate-program',    file: '/faqs/affiliate-program.md',   dot:'bg-cyan-400' },
-      { id: 'tech-support',         name: '#tech-support',         file: '/faqs/tech-support.md',        dot:'bg-violet-400' },
+      { id: 'everything-pa',       name: '#pa-knowledge',       file: '/faqs/paknowledge.md',      dot:'bg-indigo-400' }
     ];
 
-    const QUESTIONS_PER_RUN = 5;
-    const RUN_SECONDS = 10 * 60; // 10 minutes
+  const QUESTIONS_PER_RUN_BY_CHANNEL = {
+  'everything-pa': 5, // id: and how many questions
+};
+    const RUN_SECONDS = 20 * 60; // Time per channel
 
     // ===============================
     // HELPERS
@@ -171,6 +168,9 @@
       const [completedIds, setCompletedIds] = useState(new Set());
       const [notice, setNotice] = useState('');
       const [showSummary, setShowSummary] = useState(false);
+      const [askedSet, setAskedSet] = useState(new Set());
+      const questionsPerRun = (QUESTIONS_PER_RUN_BY_CHANNEL[channelId] ?? QUESTIONS_PER_RUN);
+
 
       const scrollRef = useRef(null);
       const timerRef = useRef(null);
@@ -191,6 +191,7 @@
             setDraft('');
             setMessages([]);
             setRunStartedAt(null);
+            setAskedSet(new Set());
           } catch(e){ console.error(e); }
         })();
       }, [channelId]);
@@ -237,6 +238,8 @@
       }
 
       async function startRun(){
+        setStarted(true); setFinished(false); setQCount(0); setGrading(null); setMessages([]); setHistory([]);
+setAskedSet(new Set());
         setRunStartedAt(Date.now());
         setStarted(true); setFinished(false); setQCount(0); setGrading(null); setMessages([]); setHistory([]);
         startTimer();
@@ -247,49 +250,42 @@
       // ===============================
       // askNext(): gets a non-repeating question from /api/coach
       // ===============================
-      async function askNext(){
-        if (qCount >= QUESTIONS_PER_RUN) { endRun(); return; }
-        setTyping(true);
-        try {
-          if (USE_MOCK) {
-            const text = "Sample question?";
-            setMessages(m=>[...m, {from:'bot', text, time: now()}]);
-            setHistory(h=>[...h, {role:'assistant', content:text}]);
-            return;
-          }
+async function askNext(){
+  // If you added per-channel counts, use questionsPerRun; otherwise this falls back.
+  const limit = (typeof questionsPerRun !== 'undefined') ? questionsPerRun : QUESTIONS_PER_RUN;
+  if (qCount >= limit) { endRun(); return; }
 
-        // At the top of App():
-const [askedSet, setAskedSet] = useState(new Set());
+  setTyping(true);
+  try {
+    // use the set instead of deriving from messages
+    const avoid = Array.from(askedSet);
 
-// Inside askNext(), replace "asked = …" with:
-const avoid = Array.from(askedSet);
+    const res = await fetch(COACH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        channel: CHANNELS.find(c=>c.id===channelId)?.name || channelId,
+        avoid,               // ← prevent repeats
+        order: 'sequential'  // or 'random'
+      })
+    });
 
-          const res = await fetch(COACH_URL, {
-            method: 'POST',
-            headers: { 'Content-Type':'application/json' },
-            body: JSON.stringify({
-              channel: CHANNELS.find(c=>c.id===channelId)?.name || channelId,
-              avoid: asked,          // ← prevent repeats
-              order: 'sequential'    // or 'random'
-            })
-          });
+    const txt = await res.text();
+    let data; try { data = JSON.parse(txt); } catch { throw new Error(`Coach ${res.status}: ${txt}`); }
+    if (!res.ok) throw new Error(data?.error || `Coach ${res.status}`);
 
-          const txt = await res.text();
-          let data;
-          try { data = JSON.parse(txt); } catch { throw new Error(`Coach ${res.status}: ${txt}`); }
-          if (!res.ok) throw new Error(data?.error || `Coach ${res.status}`);
-          const qText = data?.reply?.content?.trim() || "Ask: (No coach output)";
+    const qText = data?.reply?.content?.trim() || "Ask: (No coach output)";
+    // 👇 Add to the set right after qText is finalized
+    setAskedSet(prev => new Set(prev).add(qText));
 
-          setAskedSet(prev => new Set(prev).add(qText));
-
-          setMessages(m=>[...m, {from:'bot', text:qText, time: now()}]);
-          setHistory(h=>[...h, {role:'assistant', content:qText}]);
-        } catch (e) {
-          setMessages(m=>[...m, {from:'bot', text:`Coach error: ${e.message}`, time: now()}]);
-        } finally {
-          setTyping(false);
-        }
-      }
+    setMessages(m=>[...m, {from:'bot', text:qText, time: now()}]);
+    setHistory(h=>[...h, {role:'assistant', content:qText}]);
+  } catch (e) {
+    setMessages(m=>[...m, {from:'bot', text:`Coach error: ${e.message}`, time: now()}]);
+  } finally {
+    setTyping(false);
+  }
+}
 
       function endRun(passedResults){
         if (finished) return;
@@ -429,6 +425,7 @@ const avoid = Array.from(askedSet);
 
       function resetEphemeralState() {
         if (timerRef.current) clearInterval(timerRef.current);
+        setAskedSet(new Set());
         setStarted(false);
         setFinished(false);
         setQCount(0);
