@@ -41,10 +41,15 @@
     // ===============================
     // ENDPOINTS / SETTINGS
     // ===============================
-    const REPORT_URL = '/api/report';
-    const COACH_URL  = '/api/coach';   // now returns fixed questions from files, no repeats when given `avoid`
-    const GRADE_URL  = '/api/grader';  // optionally blocks dup questions (if you installed the "no-copy" grader)
-    const CHECK_ACCESS_URL = '/api/check-access';
+const API_BASE =
+  (location.origin && location.origin.startsWith('http'))
+    ? location.origin
+    : 'https://faq-sim-sandbox.vercel.app/'; // ← change this to your real domain
+
+const REPORT_URL       = `${API_BASE}/api/report`;
+const COACH_URL        = `${API_BASE}/api/coach`;
+const GRADE_URL        = `${API_BASE}/api/grader`;
+const CHECK_ACCESS_URL = `${API_BASE}/api/check-access`;
 
     const USE_MOCK = false;
 
