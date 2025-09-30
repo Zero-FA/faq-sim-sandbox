@@ -34,7 +34,7 @@ module.exports = async function handler(req, res) {
       catch (e) { return res.status(400).json({ error: 'Bad JSON', detail: String(e) }); }
     }
     const {
-      channel = '#paknowledge',
+      channel = '#pa-knowledge',
       avoid = []  // already asked questions
     } = body || {};
 
