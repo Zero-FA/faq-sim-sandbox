@@ -168,6 +168,16 @@ const questionsPerRun_BY_CHANNEL = {
       const [typing, setTyping] = useState(false);
       const [secondsLeft, setSecondsLeft] = useState(RUN_SECONDS);
 
+      function handleResetChannel() {
+  if (started && !finished && !confirm("Reset this channel now? Progress will be lost.")) return;
+  resetChannel(channelId);
+}
+
+function handleResetAll() {
+  if (started && !finished && !confirm("Reset EVERYTHING now? All progress will be lost.")) return;
+  resetAll();
+}
+
       const [runStartedAt, setRunStartedAt] = useState(null);
       const [scores, setScores] = useState({});
       const [unlockedIdx, setUnlockedIdx] = useState(0);
@@ -442,7 +452,13 @@ if (qCount >= questionsPerRun) { endRun(); return; }
       }
 
       async function resetChannel(targetId = channelId) {
-        setScores(prev => {
+  if (finalTimeoutRef.current) {
+    clearTimeout(finalTimeoutRef.current);
+    finalTimeoutRef.current = null;
+    finalSentRef.current = false;
+  }
+
+  setScores(prev => {
           const next = { ...prev };
           delete next[targetId];
           return next;
@@ -462,8 +478,14 @@ if (qCount >= questionsPerRun) { endRun(); return; }
         }
       }
 
-      async function resetAll() {
-        if (timerRef.current) clearInterval(timerRef.current);
+async function resetAll() {
+  if (finalTimeoutRef.current) {
+    clearTimeout(finalTimeoutRef.current);
+    finalTimeoutRef.current = null;
+    finalSentRef.current = false;
+  }
+
+  if (timerRef.current) clearInterval(timerRef.current);
         setScores({});
         setCompletedIds(new Set());
         setUnlockedIdx(0);
@@ -530,8 +552,7 @@ if (qCount >= questionsPerRun) { endRun(); return; }
 
     <button
       className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-      onClick={() => resetChannel(channelId)}
-      disabled={started}
+onClick={handleResetChannel}
       title="Reset just this channel back to Start"
     >
       Reset Channel
@@ -539,8 +560,7 @@ if (qCount >= questionsPerRun) { endRun(); return; }
 
     <button
       className="px-3 py-1.5 rounded border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-      onClick={resetAll}
-      disabled={started}
+onClick={handleResetAll}
       title="Reset everything back to Start"
     >
       Reset All
