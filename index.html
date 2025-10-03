@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <!-- ===============================
-       DOCUMENT: Apex Trainer App
+       DOCUMENT: Apex Trainer App (rewritten)
        PURPOSE: Quiz from fixed per-channel question files (no repeats),
                 grade against channel FAQs, and show results.
+                — Reset buttons are always visible and usable mid‑run.
        =============================== -->
 
   <meta charset="utf-8" />
@@ -25,6 +26,7 @@
     .ch-item { cursor: pointer; border-radius: .5rem; padding:.5rem .75rem; display:flex; gap:.5rem; align-items:center;}
     .ch-item.active { background: rgb(30 41 59 / .55); }
     .dot { width:.5rem; height:.5rem; border-radius:9999px; }
+    a, a:visited, a:hover, a:active { color: #3b82f6; text-decoration: underline; }
   </style>
 </head>
 <body class="bg-slate-100">
@@ -41,26 +43,27 @@
     // ===============================
     // ENDPOINTS / SETTINGS
     // ===============================
-const API_BASE = /localhost|127\.0\.0\.1|file:/i.test(location.origin)
-  ? 'https://faq-sim-sandbox.vercel.app' // ← no trailing slash
-  : location.origin;
+    const API_BASE = /localhost|127\.0\.0\.1|file:/i.test(location.origin)
+      ? 'https://faq-sim-sandbox.vercel.app' // ← no trailing slash
+      : location.origin;
 
-const REPORT_URL       = `${API_BASE}/api/report`;
-const COACH_URL        = `${API_BASE}/api/coach`;
-const GRADE_URL        = `${API_BASE}/api/grader`;
-const CHECK_ACCESS_URL = `${API_BASE}/api/check-access`;
+    const REPORT_URL       = `${API_BASE}/api/report`;
+    const COACH_URL        = `${API_BASE}/api/coach`;
+    const GRADE_URL        = `${API_BASE}/api/grader`;
+    const CHECK_ACCESS_URL = `${API_BASE}/api/check-access`;
 
     const USE_MOCK = false;
 
     const CHANNELS = [
-      { id: 'pa-knowledge',       name: '#pa-knowledge',       file: '/faqs/paknowledge.md',      dot:'bg-indigo-400' }
+      { id: 'pa-knowledge', name: '#pa-knowledge', file: '/faqs/paknowledge.md', dot:'bg-indigo-400' }
     ];
 
-// Per-channel question counts (optional)
-const DEFAULT_questionsPerRun = 10;
-const questionsPerRun_BY_CHANNEL = {
-  'pa-knowledge': 10,
-};
+    // Per-channel question counts (optional)
+    const DEFAULT_questionsPerRun = 10;
+    const questionsPerRun_BY_CHANNEL = {
+      'pa-knowledge': 10,
+    };
+
     const RUN_SECONDS = 20 * 60; // Time per channel
 
     // ===============================
@@ -168,16 +171,6 @@ const questionsPerRun_BY_CHANNEL = {
       const [typing, setTyping] = useState(false);
       const [secondsLeft, setSecondsLeft] = useState(RUN_SECONDS);
 
-      function handleResetChannel() {
-  if (started && !finished && !confirm("Reset this channel now? Progress will be lost.")) return;
-  resetChannel(channelId);
-}
-
-function handleResetAll() {
-  if (started && !finished && !confirm("Reset EVERYTHING now? All progress will be lost.")) return;
-  resetAll();
-}
-
       const [runStartedAt, setRunStartedAt] = useState(null);
       const [scores, setScores] = useState({});
       const [unlockedIdx, setUnlockedIdx] = useState(0);
@@ -185,8 +178,7 @@ function handleResetAll() {
       const [notice, setNotice] = useState('');
       const [showSummary, setShowSummary] = useState(false);
       const [askedSet, setAskedSet] = useState(new Set());
-const questionsPerRun = (questionsPerRun_BY_CHANNEL[channelId] ?? DEFAULT_questionsPerRun);
-
+      const questionsPerRun = (questionsPerRun_BY_CHANNEL[channelId] ?? DEFAULT_questionsPerRun);
 
       const scrollRef = useRef(null);
       const timerRef = useRef(null);
@@ -253,58 +245,57 @@ const questionsPerRun = (questionsPerRun_BY_CHANNEL[channelId] ?? DEFAULT_questi
         }
       }
 
-async function startRun(){
-  setAskedSet(new Set());
-  setRunStartedAt(Date.now());
-  setStarted(true); setFinished(false); setQCount(0); setGrading(null); setMessages([]); setHistory([]);
-  startTimer();
-  setMessages(m=>[...m, {from:'bot', text:`I’ll ask you ${questionsPerRun} quick questions. Answer using the FAQs. Ready?`, time: now()}]);
-  await askNext();
-}
+      async function startRun(){
+        setAskedSet(new Set());
+        setRunStartedAt(Date.now());
+        setStarted(true); setFinished(false); setQCount(0); setGrading(null); setMessages([]); setHistory([]);
+        startTimer();
+        setMessages(m=>[...m, {from:'bot', text:`I’ll ask you ${questionsPerRun} quick questions. Answer using the FAQs. Ready?`, time: now()}]);
+        await askNext();
+      }
 
       // ===============================
       // askNext(): gets a non-repeating question from /api/coach
       // ===============================
-async function askNext(){
-  // If you added per-channel counts, use questionsPerRun; otherwise this falls back.
-if (qCount >= questionsPerRun) { endRun(); return; }
+      async function askNext(){
+        if (qCount >= questionsPerRun) { endRun(); return; }
 
-  setTyping(true);
-  try {
-    // use the set instead of deriving from messages
-    const avoid = Array.from(askedSet);
+        setTyping(true);
+        try {
+          const avoid = Array.from(askedSet);
 
-    const res = await fetch(COACH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({
-        channel: channelId,
-        avoid,               // ← prevent repeats
-        order: 'sequential'  // or 'random'
-      })
-    });
+          const res = await fetch(COACH_URL, {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({
+              channel: channelId,
+              avoid,               // ← prevent repeats
+              order: 'sequential'  // or 'random'
+            })
+          });
 
-    const txt = await res.text();
-    let data; try { data = JSON.parse(txt); } catch { throw new Error(`Coach ${res.status}: ${txt}`); }
-    if (!res.ok) throw new Error(data?.error || `Coach ${res.status}`);
+          const txt = await res.text();
+          let data; try { data = JSON.parse(txt); } catch { throw new Error(`Coach ${res.status}: ${txt}`); }
+          if (!res.ok) throw new Error(data?.error || `Coach ${res.status}`);
 
-    const qText = data?.reply?.content?.trim() || "Ask: (No coach output)";
-    // 👇 Add to the set right after qText is finalized
-    setAskedSet(prev => new Set(prev).add(qText));
+          const qText = data?.reply?.content?.trim() || "Ask: (No coach output)";
+          setAskedSet(prev => new Set(prev).add(qText));
 
-    setMessages(m=>[...m, {from:'bot', text:qText, time: now()}]);
-    setHistory(h=>[...h, {role:'assistant', content:qText}]);
-  } catch (e) {
-    setMessages(m=>[...m, {from:'bot', text:`Coach error: ${e.message}`, time: now()}]);
-  } finally {
-    setTyping(false);
-  }
-}
+          setMessages(m=>[...m, {from:'bot', text:qText, time: now()}]);
+          setHistory(h=>[...h, {role:'assistant', content:qText}]);
+        } catch (e) {
+          setMessages(m=>[...m, {from:'bot', text:`Coach error: ${e.message}`, time: now()}]);
+        } finally {
+          setTyping(false);
+        }
+      }
 
       function endRun(passedResults){
         if (finished) return;
         if (timerRef.current) clearInterval(timerRef.current);
         setFinished(true);
+        // Optional: reflect idle state after finish
+        setStarted(false);
 
         const results = passedResults ?? (grading?.results || []);
         const total = results.filter(r=>r.passed).length;
@@ -380,7 +371,7 @@ if (qCount >= questionsPerRun) { endRun(); return; }
               question: lastQuestion,
               answer: userText,
               faqMd,
-              askedQuestions: askedList // belt-and-suspenders if grader has no-copy
+              askedQuestions: askedList
             })
           });
 
@@ -392,10 +383,8 @@ if (qCount >= questionsPerRun) { endRun(); return; }
             throw new Error(`${msg}: ${String(detail).slice(0,200)}`);
           }
 
-          // If grader says this question was a duplicate, re-roll without counting
           if (graded.blocked) {
-            setMessages(m=>[...m, {from:'bot', text:'(That question overlapped a prior one — giving you a fresh one…)',
-                                   time: now()}]);
+            setMessages(m=>[...m, {from:'bot', text:'(That question overlapped a prior one — giving you a fresh one…)', time: now()}]);
             await askNext();
             return; // do NOT increment qCount
           }
@@ -451,14 +440,26 @@ if (qCount >= questionsPerRun) { endRun(); return; }
         setRunStartedAt(null);
       }
 
-      async function resetChannel(targetId = channelId) {
-  if (finalTimeoutRef.current) {
-    clearTimeout(finalTimeoutRef.current);
-    finalTimeoutRef.current = null;
-    finalSentRef.current = false;
-  }
+      // === Always-on Reset: confirm + cancel any pending final report ===
+      function handleResetChannel() {
+        if (started && !finished && !confirm("Reset this channel now? Progress will be lost.")) return;
+        resetChannel(channelId);
+      }
 
-  setScores(prev => {
+      function handleResetAll() {
+        if (started && !finished && !confirm("Reset EVERYTHING now? All progress will be lost.")) return;
+        resetAll();
+      }
+
+      async function resetChannel(targetId = channelId) {
+        // Cancel any pending final report timeout
+        if (finalTimeoutRef.current) {
+          clearTimeout(finalTimeoutRef.current);
+          finalTimeoutRef.current = null;
+          finalSentRef.current = false;
+        }
+
+        setScores(prev => {
           const next = { ...prev };
           delete next[targetId];
           return next;
@@ -478,14 +479,15 @@ if (qCount >= questionsPerRun) { endRun(); return; }
         }
       }
 
-async function resetAll() {
-  if (finalTimeoutRef.current) {
-    clearTimeout(finalTimeoutRef.current);
-    finalTimeoutRef.current = null;
-    finalSentRef.current = false;
-  }
+      async function resetAll() {
+        // Cancel any pending final report timeout
+        if (finalTimeoutRef.current) {
+          clearTimeout(finalTimeoutRef.current);
+          finalTimeoutRef.current = null;
+          finalSentRef.current = false;
+        }
 
-  if (timerRef.current) clearInterval(timerRef.current);
+        if (timerRef.current) clearInterval(timerRef.current);
         setScores({});
         setCompletedIds(new Set());
         setUnlockedIdx(0);
@@ -530,43 +532,43 @@ async function resetAll() {
                 <h1 className="text-xl font-semibold">Apex Trader Funding</h1>
                 <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded">{CHANNELS.find(c=>c.id===channelId)?.name}</span>
               </div>
+
+              {/* Controls: Start (conditional), Reset buttons (always visible) */}
               <div className="flex items-center gap-3">
                 <div className={`text-sm font-semibold text-slate-700 ${started&&!finished?'':'hidden'}`}>
                   {mmss(secondsLeft)}
                 </div>
 
                 {(!started || finished) && (
-  <>
-    <button
-      className="px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
-      onClick={startRun}
-      disabled={!!scores[channelId] || CHANNELS.findIndex(c=>c.id===channelId) > unlockedIdx}
-      title={
-        scores[channelId]
-          ? 'This channel is completed. Switch channels or reset to try again.'
-          : (CHANNELS.findIndex(c=>c.id===channelId) > unlockedIdx ? 'Locked channel' : '')
-      }
-    >
-      Start
-    </button>
+                  <button
+                    className="px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
+                    onClick={startRun}
+                    disabled={!!scores[channelId] || CHANNELS.findIndex(c=>c.id===channelId) > unlockedIdx}
+                    title={
+                      scores[channelId]
+                        ? 'This channel is completed. Switch channels or reset to try again.'
+                        : (CHANNELS.findIndex(c=>c.id===channelId) > unlockedIdx ? 'Locked channel' : '')
+                    }
+                  >
+                    Start
+                  </button>
+                )}
 
-    <button
-      className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-onClick={handleResetChannel}
-      title="Reset just this channel back to Start"
-    >
-      Reset Channel
-    </button>
+                <button
+                  className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
+                  onClick={handleResetChannel}
+                  title="Reset just this channel back to Start"
+                >
+                  Reset Channel
+                </button>
 
-    <button
-      className="px-3 py-1.5 rounded border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-onClick={handleResetAll}
-      title="Reset everything back to Start"
-    >
-      Reset All
-    </button>
-  </>
-)}
+                <button
+                  className="px-3 py-1.5 rounded border border-rose-300 text-rose-700 hover:bg-rose-50"
+                  onClick={handleResetAll}
+                  title="Reset everything back to Start"
+                >
+                  Reset All
+                </button>
               </div>
             </div>
 
